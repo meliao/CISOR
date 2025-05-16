@@ -15,6 +15,8 @@ clear; close all; home;
 
 addpath functions
 
+fprintf('Current directory: %s\n', pwd);
+
 %%% Select reconstruction algorithm from
 
 % 'FB_TV' : first Born approximation with TV regularization
@@ -38,13 +40,13 @@ lamScale = [1/4,1/2,1,2,4];
 c = 299792458;
 
 %%% Set of measured frequencies [1/s]
-frequencySet = [4];
+frequencySet = [4]; % in GHz
 numFrequencies = length(frequencySet);
 
 lambdaSet = c./frequencySet/1e9; % wavelength [m]
 kbSet = 2*pi./lambdaSet; % wavenumber [1/m]
 
-contrast = 0.002:0.04:0.4;
+contrast = [2.0 ];
 numIter = 1000;
 alpha = 0.98;
 
@@ -69,13 +71,14 @@ end
 
 
 recSNRFinal = zeros(length(contrast),length(lamScale));
+recrelL2Final = zeros(length(contrast),length(lamScale));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Sampling grid for the object
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Size of the reconstruction domain
-Lx = 1.2; % [m]
-Ly = 1.2; % [m]
+Lx = 0.16; % [m]
+Ly = 0.16; % [m]
 
 % Number of pixels
 Nx = 128;
@@ -93,30 +96,37 @@ y = (-Ny/2:Ny/2-1)*dy;
 % Meshgrid the pixel locations
 [XPix, YPix] = meshgrid(x, y);
 
+% Save the final reconstructions here
+ohats = zeros(length(contrast),length(lamScale),Ny,Nx);
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute locations of transmitters and receivers
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Location of the transmissions
-transmitterAngles = -60:5:60; % [degree]
+transmitterAngles = 0:45:315; % [degree]
+transmitter_rad = 1.67;
 numTransmitters = numel(transmitterAngles);
-x_transmit = -(0.48+0.959)*ones(1,numTransmitters); % [m]
-y_transmit = (0.48+0.959) * tand(transmitterAngles); % [m]
+x_transmit = transmitter_rad * cosd(transmitterAngles); % [m]
+y_transmit = transmitter_rad * sind(transmitterAngles); % [m]
 
 
 
 % Location of the receivers
-numReceivers = 169*2;
+numReceivers = 360;
+receiver_rad = 1.67;
 
-x_receive = 0.959 * ones(1,numReceivers);
-x_receive(1:169) = - x_receive(1:169);
+x_receive = receiver_rad * cosd(1:360); % [m]
+y_receive = receiver_rad * sind(1:360); % [m]
 
-y_receive(1:169) = (-84:84)*0.0384;
-y_receive = repmat(y_receive,[1,2]);
+% y_receive(1:169) = (-84:84)*0.0384;
+% y_receive = repmat(y_receive,[1,2]);
 
 
 receiverMaskSet = ones(numTransmitters,numReceivers,numFrequencies);
+% Print shape of receiverMaskSet
+fprintf('Shape of receiverMaskSet: %d x %d x %d\n', size(receiverMaskSet, 1), size(receiverMaskSet, 2), size(receiverMaskSet, 3));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Distance data between sensors and pixels
@@ -174,93 +184,118 @@ R = sqrt(XGreen.^2+YGreen.^2);
 domainGreensFunctionSet = zeros([size(R), numFrequencies]);
 
 for indFreq = 1:numFrequencies
-
+    
     %%% Extract wave-number
     kb = kbSet(indFreq);
-
+    
     %%% generate Hankel function and remove singularity (singular at R=0)
     domainGreensFunction = hankFun(kb*R);
     domainGreensFunction(Ny+1,Nx+1) = quad2d(@(x,y) hankFun(kb*sqrt(x.^2+y.^2)),...
         -dx/2, dx/2, -dy/2, dy/2)/(dx*dy);
     domainGreensFunction = (kb^2)*domainGreensFunction;
-
+    
     %%% Store
     domainGreensFunctionSet(:,:,indFreq) = domainGreensFunction;
-
+    
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Generate ground truth
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for indContr = 1:length(contrast)
-
-o = phantom(Ny);
-o = o/max(o(:))*contrast(indContr);
-
-if strcmp(algo,'CISOR_TV')
-    if indContr ==  1
-        stepSize = 1.5*sqrt(1/contrast(indContr));
+    
+    o = gen_FoamDeilExt_phantom(XPix, YPix);
+    
+    % Show a plot of the object
+    % figure(1); clf;
+    % imagesc(x, y, o); axis image; colormap(parula);
+    % colorbar;
+    % title('Ground Truth');
+    % xlabel('x [m]'); ylabel('y [m]');
+    % set(gca, 'YDir', 'normal');
+    % set(gca, 'FontSize', 16);
+    % drawnow;
+    
+    if strcmp(algo,'CISOR_TV')
+        if indContr ==  1
+            stepSize = 1.5*sqrt(1/contrast(indContr));
+        else
+            stepSize = 2*sqrt(1/contrast(indContr));
+        end
     else
-        stepSize = 2*sqrt(1/contrast(indContr));
+        stepSize = sqrt(1/contrast(indContr));
     end
-else
-    stepSize = sqrt(1/contrast(indContr));
-end
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Compute Measurements
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-utotDomSet = forwardProp(uincDomSet, o, domainGreensFunctionSet, uincDomSet, dx, dy);
-uscatPredSet = fullPropagateToSensor(o, utotDomSet,...
-    sensorGreensFunctionSet, receiverMaskSet, dx, dy);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Reconstruct
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-data = uscatPredSet;
-tol = 1e-4;
-lam = (5e-5)*0.5*norm(data(:))^2;
-lamAll = lam*lamScale;
-
-% parameters needed for plots
-plotRec.flag = 1; % 1 -- plot result at every iteration; 0 -- don't plot
-plotRec.Lx = Lx; plotRec.Ly = Ly;
-plotRec.emax = max(o(:));
-
-
-for indLam = 1:length(lamScale)
-    lam = lamAll(indLam);
-    switch algo
-        case 'FB_TV'
-            [ohat, outs] = firstBornTV(data,uincDomSet,...
-                domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
-                dx,dy,numIter,plotRec,o,tol,lam,stepSize);
-            recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
-            save ContrastFB.mat  contrast numIter recSNRFinal
-        case 'IL_TV'
-            [ohat, outs] = iterativeLinearizationTV(data,uincDomSet,...
-                domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
-                dx,dy,numIter,plotRec,o,tol,lam,stepSize);
-            recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
-            save ContrastIL.mat  contrast numIter recSNRFinal
-        case 'CSI_TV'
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Load Measurements from File
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % This loads variables 'uincMeasSet', 'utotMeasSet', 'ampSet', 'receiverMaskSet', 'recieverIndicesSet'
+    load('./FoamDielExtTM.mat');
+    
+    % For utotMeasSet, uincMeasSet, and receiverMaskSet, the last dimension is the frequency. We only want the frequency corresponding to index frequencySet(1).
+    uincMeasSet = uincMeasSet(:,:,frequencySet(1));
+    utotMeasSet = utotMeasSet(:,:,frequencySet(1));
+    receiverMaskSet = receiverMaskSet(:,:,frequencySet(1));
+    
+    uscatPredSet = utotMeasSet-uincMeasSet;
+    
+    % Print shape of receiverMaskSet
+    fprintf('Shape of receiverMaskSet: %d x %d x %d\n', size(receiverMaskSet, 1), size(receiverMaskSet, 2), size(receiverMaskSet, 3));
+    
+    % utotDomSet = forwardProp(uincDomSet, o, domainGreensFunctionSet, uincDomSet, dx, dy);
+    % uscatPredSet = fullPropagateToSensor(o, utotDomSet,...
+    % sensorGreensFunctionSet, receiverMaskSet, dx, dy);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Reconstruct
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    data = uscatPredSet;
+    tol = 1e-4;
+    lam = (5e-5)*0.5*norm(data(:))^2;
+    lamAll = lam*lamScale;
+    
+    % parameters needed for plots
+    plotRec.flag = 0; % 1 -- plot result at every iteration; 0 -- don't plot
+    plotRec.Lx = Lx; plotRec.Ly = Ly;
+    plotRec.emax = max(o(:));
+    
+    
+    for indLam = 1:length(lamScale)
+        lam = lamAll(indLam);
+        switch algo
+            case 'FB_TV'
+                [ohat, outs] = firstBornTV(data,uincDomSet,...
+                    domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
+                    dx,dy,numIter,plotRec,o,tol,lam,stepSize);
+                recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
+                save ContrastFB.mat  contrast numIter recSNRFinal
+            case 'IL_TV'
+                [ohat, outs] = iterativeLinearizationTV(data,uincDomSet,...
+                    domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
+                    dx,dy,numIter,plotRec,o,tol,lam,stepSize);
+                recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
+                save ContrastIL.mat  contrast numIter recSNRFinal
+            case 'CSI_TV'
                 [ohat, outs] = contrastSourceInverseTV(data,uincDomSet,...
                     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
                     dx,dy,numIter,plotRec,o,tol,lam,stepSize,a);
-            save ContrastCSI.mat  contrast numIter recSNRFinal
-        case 'CISOR_TV'
-            [ohat, outs] = cisorTV(data,uincDomSet,...
-                domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
-                dx,dy,numIter,plotRec,alpha,o,tol,lam,stepSize);
-            recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
-            save ContrastCISOR.mat  contrast numIter recSNRFinal
-        case 'SEAGLE_TV'
+                save ContrastCSI.mat  contrast numIter recSNRFinal
+            case 'CISOR_TV'
+                [ohat, outs] = cisorTV(data,uincDomSet,...
+                    domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
+                    dx,dy,numIter,plotRec,alpha,o,tol,lam,stepSize);
+                recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
+                save ContrastCISOR.mat  contrast numIter recSNRFinal
+            case 'SEAGLE_TV'
                 [ohat, outs] = seagleTV(data,uincDomSet,...
                     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
                     dx,dy,numIter,plotRec,o,tol,lam,stepSize);
-            save ContrastSEAGLE.mat  contrast numIter recSNRFinal
-        otherwise
-            error('No such algorithm found!')
+                recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
+                recrelL2Final(indContr,indLam) = norm(o(:)-ohat(:))/norm(o(:));
+                ohats(indContr,indLam,:,:) = ohat;
+                save ContrastSEAGLE.mat  contrast numIter recSNRFinal ohats
+            otherwise
+                error('No such algorithm found!')
+        end
+        
     end
-
-end
-
+    
 end

@@ -13,6 +13,9 @@
 
 clear; close all; home;
 
+% Print current directory
+fprintf('Current directory: %s\n', pwd);
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Basic parameters
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -34,10 +37,10 @@ kbSet = 2*pi./lambdaSet; % wavenumber [1/m]
 %% Read data
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-folderName = ['.' filesep...
+folderName = ['..' filesep...
     'data' filesep];
 
-fileName = 'FoamTwinDielTM';
+fileName = 'FoamDielExtTM';
 extension = '.exp';
 
 fullFilePath = [folderName fileName extension];
@@ -100,9 +103,9 @@ receiverIndicesSet = zeros(numTransmitters, numActiveReceivers, numFrequencies);
 receiverMaskSet = false(numTransmitters, numReceivers, numFrequencies);
 
 for indFreq = 1:numFrequencies
-
+    
     frequency = frequencySet(indFreq);
-
+    
     for ind = 1:numTransmitters
         I = fullData(:, 1) == ind & fullData(:, 3) == frequency;
         receiverIndicesSet(ind, :, indFreq) = fullData(I, 2);
@@ -170,17 +173,17 @@ utotMeasSet = zeros(numTransmitters, numReceivers, numFrequencies);
 uincMeasSet = zeros(numTransmitters, numReceivers, numFrequencies);
 
 for indFreq = 1:numFrequencies
-
+    
     frequency = frequencySet(indFreq);
-
+    
     for ind = 1:numTransmitters
-
+        
         % Extract data for current transmission and frequency
         I = fullData(:, 1) == ind & fullData(:, 3) == frequency;
         activeData = fullData(I, :);
-
+        
         indRec = receiverIndicesSet(ind, :, indFreq);
-
+        
         % Fill in data
         utotMeasSet(ind, indRec, indFreq)=...
             conj(activeData(:,4)+1j*activeData(:,5));
@@ -200,16 +203,16 @@ uincPredSet = zeros(size(uincMeasSet));
 ampSet = zeros(numFrequencies);
 
 for indFreq = 1:numFrequencies
-
+    
     %%% Extract measured incident field
     uincMeas = uincMeasSet(:,:,indFreq);
-
+    
     %%% Extract wavenumber in air
     kb = kbSet(indFreq);
-
+    
     %%% Predicted input field
     uincPred = 1j*0.25*besselh(0, 1, kb*distanceTransToRec);
-
+    
     %%% Find ratio in the middleswitch fileName
     amp = zeros(numTransmitters,1);
     switch fileName
@@ -225,16 +228,16 @@ for indFreq = 1:numFrequencies
             end
         otherwise
     end
-
+    
     %%% Find average
     amp = mean(amp);
-
+    
     %%% Store
     ampSet(indFreq) = amp;
-
+    
     %%% Scale the predicted input field
     uincPred = uincPred .* amp;
-
+    
     %%% Store
     uincPredSet(:,:,indFreq) = uincPred;
 end
@@ -257,14 +260,14 @@ fprintf('Total Error: %.2f\n', error);
 figure('Color', 'w', 'Name', 'Input fields [Tx = 1]');
 
 for indFreq = 1:numFrequencies
-
+    
     %%% Active receivers
     I = receiverIndicesSet(1, :, indFreq);
-
+    
     %%% Extract fields
     uincMeas = uincMeasSet(1, I, indFreq);
     uincPred = uincPredSet(1, I, indFreq);
-
+    
     subplot(numFrequencies, 3, 3*indFreq-2);
     plot(I, abs(uincMeas), 'b.',...
         I, abs(uincPred), 'r.',...
@@ -272,7 +275,7 @@ for indFreq = 1:numFrequencies
     grid on;
     xlim([0, 359]);
     title(sprintf('Amplitude (%d GHz)', frequencySet(indFreq)));
-
+    
     subplot(numFrequencies, 3, 3*indFreq-1);
     plot(I, angle(uincMeas), 'b.',...
         I, angle(uincPred), 'r.',...
@@ -280,7 +283,7 @@ for indFreq = 1:numFrequencies
     grid on;
     xlim([0, 359]);
     title(sprintf('Phase (%d GHz)', frequencySet(indFreq)));
-
+    
     subplot(numFrequencies, 3, 3*indFreq);
     plot(I, abs(angle(uincMeas./uincPred)), 'k.',...
         'LineWidth', 1.2);
