@@ -11,7 +11,7 @@
 %% Prepare workspace
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-clear; close all; home;
+close all; home;
 
 addpath functions
 
@@ -30,7 +30,6 @@ algo = algo{5};
 
 %%% Handle to the Hankel function
 hankFun = @(x) 1j*0.25*besselh(0, 1, x);
-lamScale = [1/4,1/2,1,2,4];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Basic parameters
@@ -40,34 +39,35 @@ lamScale = [1/4,1/2,1,2,4];
 c = 299792458;
 
 %%% Set of measured frequencies [1/s]
-frequencySet = [4]; % in GHz
+frequencySet = [10]; % in GHz
 numFrequencies = length(frequencySet);
 
 lambdaSet = c./frequencySet/1e9; % wavelength [m]
 kbSet = 2*pi./lambdaSet; % wavenumber [1/m]
 
-contrast = [2.0 ];
-numIter = 1000;
+% contrast = 0.002:0.04:0.4;
+contrast = 2.0;
+numIter = 500;
 alpha = 0.98;
 
 
 %%% parameters for simulation
 
-stepSize = 1;
+% stepSize = 1;
 
-if strcmp(algo,'CSI_TV')
-    a = 10;
-    stepSize = 0.5;
-end
+% if strcmp(algo,'CSI_TV')
+%     a = 10;
+%     stepSize = 0.5;
+% end
 
-if strcmp(algo,'CISOR_TV')
-    alpha = 0.98;
-end
+% if strcmp(algo,'CISOR_TV')
+%     alpha = 0.98;
+% end
 
-if strcmp(algo,'SEAGLE_TV')
-    numIter = 200;
-    stepSize = 2;10;100;
-end
+% if strcmp(algo,'SEAGLE_TV')
+%     numIter = 10;
+%     stepSize = 2;10;100;
+% end
 
 
 recSNRFinal = zeros(length(contrast),length(lamScale));
@@ -77,13 +77,13 @@ recrelL2Final = zeros(length(contrast),length(lamScale));
 %% Sampling grid for the object
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Size of the reconstruction domain
+% Size of the reconstruction domain
 Lx = 0.16; % [m]
 Ly = 0.16; % [m]
 
 % Number of pixels
 Nx = 128;
 Ny = 128;
-
 % Sampling step
 dx = Lx/Nx;
 dy = Ly/Ny;
@@ -216,15 +216,19 @@ for indContr = 1:length(contrast)
     % set(gca, 'FontSize', 16);
     % drawnow;
     
-    if strcmp(algo,'CISOR_TV')
-        if indContr ==  1
-            stepSize = 1.5*sqrt(1/contrast(indContr));
-        else
-            stepSize = 2*sqrt(1/contrast(indContr));
-        end
-    else
-        stepSize = sqrt(1/contrast(indContr));
-    end
+    % if strcmp(algo,'CISOR_TV')
+    %     if indContr ==  1
+    %         stepSize = 1.5*sqrt(1/contrast(indContr));
+    %     else
+    %         stepSize = 2*sqrt(1/contrast(indContr));
+    %     end
+    % else
+    %     stepSize = sqrt(1/contrast(indContr));
+    % end
+
+    % if strcmp(algo, 'SEAGLE_TV')
+    %     stepSize = 1.0;
+    % end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Load Measurements from File
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -232,9 +236,9 @@ for indContr = 1:length(contrast)
     load('./FoamDielExtTM.mat');
     
     % For utotMeasSet, uincMeasSet, and receiverMaskSet, the last dimension is the frequency. We only want the frequency corresponding to index frequencySet(1).
-    uincMeasSet = uincMeasSet(:,:,frequencySet(1));
-    utotMeasSet = utotMeasSet(:,:,frequencySet(1));
-    receiverMaskSet = receiverMaskSet(:,:,frequencySet(1));
+    uincMeasSet = uincMeasSet(:,:,frequencySet(1)-1);
+    utotMeasSet = utotMeasSet(:,:,frequencySet(1)-1);
+    receiverMaskSet = receiverMaskSet(:,:,frequencySet(1)-1);
     
     uscatPredSet = utotMeasSet-uincMeasSet;
     
@@ -260,6 +264,7 @@ for indContr = 1:length(contrast)
     
     for indLam = 1:length(lamScale)
         lam = lamAll(indLam);
+        filename = sprintf('../data/result_SEAGLE_TV_lam_%d_stepSize_%d.mat', lam, stepSize);
         switch algo
             case 'FB_TV'
                 [ohat, outs] = firstBornTV(data,uincDomSet,...
@@ -285,13 +290,14 @@ for indContr = 1:length(contrast)
                 recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
                 save ContrastCISOR.mat  contrast numIter recSNRFinal
             case 'SEAGLE_TV'
-                [ohat, outs] = seagleTV(data,uincDomSet,...
+                [ohat, outs, relCost, tvCost, signalCost, times] = seagleTV(data,uincDomSet,...
                     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
                     dx,dy,numIter,plotRec,o,tol,lam,stepSize);
                 recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
                 recrelL2Final(indContr,indLam) = norm(o(:)-ohat(:))/norm(o(:));
                 ohats(indContr,indLam,:,:) = ohat;
-                save ContrastSEAGLE.mat  contrast numIter recSNRFinal ohats
+                save(filename,"ohat", "relCost", "tvCost", "signalCost", "times");
+                disp(['Saving to ' filename])
             otherwise
                 error('No such algorithm found!')
         end

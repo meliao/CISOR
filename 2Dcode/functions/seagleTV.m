@@ -3,7 +3,7 @@
 % SPDX-License-Identifier: AGPL-3.0-or-later
 
 
-function [ohat, outs] = seagleTV(data,uincDomSet,...
+function [ohat, outs, relCost, tvCost, signalCost, times] = seagleTV(data,uincDomSet,...
     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,dx,dy,...
     numIter,plotRec,o,tol,lam,stepSize,fileName)
 
@@ -23,7 +23,9 @@ stopCounter = 0;
 
 relCost = zeros(numIter, 1);
 tvCost = zeros(numIter, 1);
+signalCost = zeros(numIter, 1);
 totalCost = zeros(numIter, 1);
+times = zeros(numIter, 1);
 gradientNorm = zeros(numIter,1);
 recSNR = zeros(numIter,1);
 
@@ -37,6 +39,8 @@ reductionRate = 0.99;
 P0 = zeros(Ny*Nx*2,1);
 Q0 = zeros(Ny*Nx*2,1);
 for indIter = 1:numIter
+
+    tStart = tic;
     
     outsForward = seagle_forward(s,domainGreensFunctionSet,sensorGreensFunctionSet,...
         receiverMaskSet,K,tol_seagle,uincDomSet,dx,dy);
@@ -78,11 +82,14 @@ for indIter = 1:numIter
     gradientNorm(indIter) = norm(s(:)-ohatnext(:));
     s = ohatnext + ((q-1)/qnext)*(ohatnext-ohat);
     
+    % Relative change to evaluate early stopping criterion
+    rel_diff = norm(q - qnext) / qnext;
+
     q = qnext;
     
     ohat = ohatnext;
     
-    
+    times(indIter) = toc(tStart);
     
     %%% for computing cost only
     outsForward = seagle_forward(ohat,domainGreensFunctionSet,sensorGreensFunctionSet,...
@@ -90,7 +97,8 @@ for indIter = 1:numIter
     dataPred_ohat = outsForward.z;
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     relCost(indIter) = norm(dataPred_ohat(:)-data(:))/norm(data(:));
-    tvCost(indIter) = lam*tv_cost(ohat)/(0.5*norm(data(:)));
+    signalCost(indIter) = norm(ohat - o)/norm(o);
+    tvCost(indIter) = tv_cost(ohat);
     totalCost(indIter) = relCost(indIter) + tvCost(indIter);
     recSNR(indIter) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
     
@@ -102,21 +110,21 @@ for indIter = 1:numIter
     
     
     if indIter > 1
-        if abs(totalCost(indIter-1)-totalCost(indIter))/totalCost(indIter-1)<tol
+        if rel_diff<tol
             stopCounter = stopCounter + 1;
         else
             stopCounter = 0;
         end
         
         if stopCounter>=10
-            fprintf('Stopping after iterations do not improve total cost\n');
+            fprintf('Stopping after relative change in iterates are less than 1e-04\n');
             break;
         end
     end
     
     
-    fprintf('indIter = %d, totalCost = %e, relCost = %e, K=%d, stepSize = %4.4f \n',...
-        indIter, totalCost(indIter), relCost(indIter), outsForward.K,stepSize);
+    fprintf('indIter = %d, signalCost = %e, relCost = %e, K=%d, stepSize = %4.4f, time=%e \n',...
+        indIter, signalCost(indIter), relCost(indIter), outsForward.K,stepSize, times(indIter));
     
     if plotRec.flag
         Lx = plotRec.Lx;

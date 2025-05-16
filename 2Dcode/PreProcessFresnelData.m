@@ -55,12 +55,12 @@ fullData = dlmread(fullFilePath, '', startRow, startCol);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Size of the reconstruction domain
-Lx = 0.1536; % [m]
-Ly = 0.1536; % [m]
+Lx = 0.16; % [m]
+Ly = 0.16; % [m]
 
 % Number of pixels
-Nx = 256;
-Ny = 256;
+Nx = 128;
+Ny = 128;
 
 % Sampling step
 dx = Lx/Nx;

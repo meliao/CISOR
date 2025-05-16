@@ -37,3 +37,9 @@ octave-workspace
 
 # Custom ignores
 .DS_Store
+
+# Data from experiments
+jobs/
+logs/
+data/
+.mat
