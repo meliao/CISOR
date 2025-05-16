@@ -83,7 +83,7 @@ for indIter = 1:numIter
     s = ohatnext + ((q-1)/qnext)*(ohatnext-ohat);
     
     % Relative change to evaluate early stopping criterion
-    rel_diff = norm(q - qnext) / qnext;
+    rel_diff = norm(ohat - ohatnext) / ohatnext;
 
     q = qnext;
     

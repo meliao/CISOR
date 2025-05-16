@@ -2,7 +2,7 @@
 %
 % SPDX-License-Identifier: AGPL-3.0-or-later
 
-function [ohat, outs] = cisorTV(data,uincDomSet,...
+function [ohat, outs, relCost, tvCost, signalCost, times] = cisorTV(data,uincDomSet,...
     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,dx,dy,...
     numIter,plotRec,alpha,o,tol,lam,stepSize,fileName)
 
@@ -49,6 +49,8 @@ stopCounter = 0;
 
 
 relCost = zeros(numIter, 1);
+signalCost = zeros(numIter, 1);
+times = zeros(numIter, 1);
 tvCost = zeros(numIter, 1);
 totalCost = zeros(numIter, 1);
 gradientNorm = zeros(numIter,1);
@@ -63,6 +65,8 @@ P0 = zeros(Ny*Nx*2, 1);
 Q0 = zeros(Ny*Nx*2, 1);
 
 for indIter = 1:numIter
+
+    tstart = tic;
 
     u = forwardProp(uincDomSet, s, domainGreensFunctionSet, u, dx, dy);
     dataPred = fullPropagateToSensor(s, u,...
@@ -94,7 +98,7 @@ for indIter = 1:numIter
 
     ohat = ohatnext;
 
-
+    times(indIter) = toc(tstart);
 
     %%% for computing cost only
     u_ohat = forwardProp(uincDomSet, ohat, domainGreensFunctionSet, u, dx, dy);
@@ -102,7 +106,8 @@ for indIter = 1:numIter
         sensorGreensFunctionSet, receiverMaskSet, dx, dy);
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     relCost(indIter) = norm(dataPred_ohat(:)-data(:))/norm(data(:));
-    tvCost(indIter) = lam*tv_cost(ohat)/(0.5*norm(data(:)));
+    tvCost(indIter) = tv_cost(ohat);
+    signalCost(indIter) = norm(ohat-o)/norm(o);
     totalCost(indIter) = relCost(indIter) + tvCost(indIter);
     recSNR(indIter) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
 
@@ -114,20 +119,21 @@ for indIter = 1:numIter
     outs.gradientNorm = gradientNorm;
     outs.recSNR = recSNR;
 
-    if indIter > 1
-        if abs(totalCost(indIter-1)-totalCost(indIter))/totalCost(indIter-1)<tol
-            stopCounter = stopCounter + 1;
-        else
-            stopCounter = 0;
-        end
+    % if indIter > 1
+    %     if abs(totalCost(indIter-1)-totalCost(indIter))/totalCost(indIter-1)<tol
+    %         stopCounter = stopCounter + 1;
+    %     else
+    %         stopCounter = 0;
+    %     end
 
-        if stopCounter>=10
-            break;
-        end
-    end
+    %     if stopCounter>=10
+    %         break;
+    %     end
+    % end
 
 
-%     fprintf('indIter = %d, totalCost = %e\n',indIter, totalCost(indIter));
+    fprintf('indIter = %d, signalCost = %e, relCost = %e,  time=%e \n',...
+        indIter, signalCost(indIter), relCost(indIter),  times(indIter));
 
     if plotRec.flag
         Lx = plotRec.Lx;

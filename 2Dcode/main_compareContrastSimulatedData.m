@@ -11,11 +11,20 @@
 %% Prepare workspace
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+
+
 close all; home;
 
 addpath functions
 
 fprintf('Current directory: %s\n', pwd);
+
+
+% print out the variables that we need set externally.
+frequencySet
+stepSize
+lamScale
 
 %%% Select reconstruction algorithm from
 
@@ -26,7 +35,7 @@ fprintf('Current directory: %s\n', pwd);
 % 'SEAGLE_TV' : SEAGLE with TV regularization
 
 algo = {'FB_TV','IL_TV','CSI_TV','CISOR_TV','SEAGLE_TV'};
-algo = algo{5};
+algo = algo{4};
 
 %%% Handle to the Hankel function
 hankFun = @(x) 1j*0.25*besselh(0, 1, x);
@@ -39,7 +48,7 @@ hankFun = @(x) 1j*0.25*besselh(0, 1, x);
 c = 299792458;
 
 %%% Set of measured frequencies [1/s]
-frequencySet = [10]; % in GHz
+% frequencySet = [10]; % in GHz
 numFrequencies = length(frequencySet);
 
 lambdaSet = c./frequencySet/1e9; % wavelength [m]
@@ -47,8 +56,9 @@ kbSet = 2*pi./lambdaSet; % wavenumber [1/m]
 
 % contrast = 0.002:0.04:0.4;
 contrast = 2.0;
-numIter = 500;
+numIter = 1000;
 alpha = 0.98;
+
 
 
 %%% parameters for simulation
@@ -236,9 +246,11 @@ for indContr = 1:length(contrast)
     load('./FoamDielExtTM.mat');
     
     % For utotMeasSet, uincMeasSet, and receiverMaskSet, the last dimension is the frequency. We only want the frequency corresponding to index frequencySet(1).
-    uincMeasSet = uincMeasSet(:,:,frequencySet(1)-1);
-    utotMeasSet = utotMeasSet(:,:,frequencySet(1)-1);
-    receiverMaskSet = receiverMaskSet(:,:,frequencySet(1)-1);
+    freqIdx = frequencySet(1) - 1
+    
+    uincMeasSet = uincMeasSet(:,:,freqIdx );
+    utotMeasSet = utotMeasSet(:,:,freqIdx );
+    receiverMaskSet = receiverMaskSet(:,:,freqIdx );
     
     uscatPredSet = utotMeasSet-uincMeasSet;
     
@@ -264,7 +276,7 @@ for indContr = 1:length(contrast)
     
     for indLam = 1:length(lamScale)
         lam = lamAll(indLam);
-        filename = sprintf('../data/result_SEAGLE_TV_lam_%d_stepSize_%d.mat', lam, stepSize);
+        filename = sprintf('../data/result_CISOR_TV_omega_%d_lam_%d_stepSize_%d.mat', frequencySet(1), lam, stepSize);
         switch algo
             case 'FB_TV'
                 [ohat, outs] = firstBornTV(data,uincDomSet,...
@@ -284,11 +296,12 @@ for indContr = 1:length(contrast)
                     dx,dy,numIter,plotRec,o,tol,lam,stepSize,a);
                 save ContrastCSI.mat  contrast numIter recSNRFinal
             case 'CISOR_TV'
-                [ohat, outs] = cisorTV(data,uincDomSet,...
+                [ohat, outs, relCost, tvCost, signalCost, times] = cisorTV(data,uincDomSet,...
                     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
                     dx,dy,numIter,plotRec,alpha,o,tol,lam,stepSize);
                 recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
-                save ContrastCISOR.mat  contrast numIter recSNRFinal
+                save(filename,"ohat", "relCost", "tvCost", "signalCost", "times");
+                disp(['Saving to ' filename])
             case 'SEAGLE_TV'
                 [ohat, outs, relCost, tvCost, signalCost, times] = seagleTV(data,uincDomSet,...
                     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
