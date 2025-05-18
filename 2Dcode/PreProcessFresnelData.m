@@ -73,6 +73,18 @@ yPix = (-Ny/2:Ny/2-1)*dy;
 % Meshgrid the pixel locations
 [XPix, YPix] = meshgrid(xPix, yPix);
 
+% Generate and plot the FoamDeilExt phantom
+phantom = gen_FoamDeilExt_phantom(XPix, YPix);
+figure('Color', 'w', 'Name', 'FoamDeilExt Phantom');
+imagesc(xPix, yPix, phantom);
+axis equal tight;
+colormap(parula);
+colorbar;
+title('FoamDeilExt Phantom');
+xlabel('x [m]');
+ylabel('y [m]');
+drawnow;
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute locations of transmitters and receivers
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -94,6 +94,8 @@ for indIter = 1:numIter
     gradientNorm(indIter) = norm(s(:)-ohatnext(:));
     s = ohatnext + alpha*((q-1)/qnext)*(ohatnext-ohat);
 
+    reldiff = norm(ohatnext(:)-ohat(:))/norm(ohat(:));
+
     q = qnext;
 
     ohat = ohatnext;
@@ -119,17 +121,18 @@ for indIter = 1:numIter
     outs.gradientNorm = gradientNorm;
     outs.recSNR = recSNR;
 
-    % if indIter > 1
-    %     if abs(totalCost(indIter-1)-totalCost(indIter))/totalCost(indIter-1)<tol
-    %         stopCounter = stopCounter + 1;
-    %     else
-    %         stopCounter = 0;
-    %     end
+    if indIter > 1
+        if reldiff<tol
+            stopCounter = stopCounter + 1;
+        else
+            stopCounter = 0;
+        end
 
-    %     if stopCounter>=10
-    %         break;
-    %     end
-    % end
+        if stopCounter>=10
+            fprintf('Stopping criteria met. Stop iteration.\n');
+            break;
+        end
+    end
 
 
     fprintf('indIter = %d, signalCost = %e, relCost = %e,  time=%e \n',...
