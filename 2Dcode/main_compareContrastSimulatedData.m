@@ -277,6 +277,14 @@ for indContr = 1:length(contrast)
     for indLam = 1:length(lamScale)
         lam = lamAll(indLam);
         filename = sprintf('../data/result_CISOR_TV_omega_%d_lam_%d_stepSize_%d.mat', frequencySet(1), lam, stepSize);
+
+        % If the file already exists, skip the reconstruction
+        if exist(filename, 'file')
+            fprintf('File %s already exists. Skipping...\n', filename);
+            continue;
+        end
+
+
         switch algo
             case 'FB_TV'
                 [ohat, outs] = firstBornTV(data,uincDomSet,...
@@ -300,7 +308,7 @@ for indContr = 1:length(contrast)
                     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
                     dx,dy,numIter,plotRec,alpha,o,tol,lam,stepSize);
                 recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
-                save(filename,"ohat", "relCost", "tvCost", "signalCost", "times");
+                save(filename,"ohat", "relCost", "tvCost", "signalCost", "times", "o");
                 disp(['Saving to ' filename])
             case 'SEAGLE_TV'
                 [ohat, outs, relCost, tvCost, signalCost, times] = seagleTV(data,uincDomSet,...
