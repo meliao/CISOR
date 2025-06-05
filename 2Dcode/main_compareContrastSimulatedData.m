@@ -56,7 +56,7 @@ kbSet = 2*pi./lambdaSet; % wavenumber [1/m]
 
 % contrast = 0.002:0.04:0.4;
 contrast = 2.0;
-numIter = 1000;
+numIter = 100000;
 alpha = 0.98;
 
 
@@ -215,6 +215,7 @@ end
 for indContr = 1:length(contrast)
     
     o = gen_FoamDeilExt_phantom(XPix, YPix);
+    ohat = zeros([Ny Nx]);
     
     % Show a plot of the object
     % figure(1); clf;
@@ -306,7 +307,7 @@ for indContr = 1:length(contrast)
             case 'CISOR_TV'
                 [ohat, outs, relCost, tvCost, signalCost, times] = cisorTV(data,uincDomSet,...
                     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,...
-                    dx,dy,numIter,plotRec,alpha,o,tol,lam,stepSize);
+                    dx,dy,numIter,plotRec,alpha,o,tol,lam,stepSize,ohat);
                 recSNRFinal(indContr,indLam) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
                 save(filename,"ohat", "relCost", "tvCost", "signalCost", "times", "o");
                 disp(['Saving to ' filename])

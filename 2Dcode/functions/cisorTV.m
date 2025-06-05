@@ -4,7 +4,7 @@
 
 function [ohat, outs, relCost, tvCost, signalCost, times] = cisorTV(data,uincDomSet,...
     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,dx,dy,...
-    numIter,plotRec,alpha,o,tol,lam,stepSize,fileName)
+    numIter,plotRec,alpha,o,tol,lam,stepSize,ohat)
 
 %%% Implementation of CISOR
 
@@ -56,7 +56,7 @@ totalCost = zeros(numIter, 1);
 gradientNorm = zeros(numIter,1);
 recSNR = zeros(numIter,1);
 
-ohat = zeros([Ny Nx]);
+% ohat = zeros([Ny Nx]);
 s = ohat;
 q = 1;
 u = zeros(size(uincDomSet));
@@ -71,6 +71,9 @@ for indIter = 1:numIter
     u = forwardProp(uincDomSet, s, domainGreensFunctionSet, u, dx, dy);
     dataPred = fullPropagateToSensor(s, u,...
         sensorGreensFunctionSet, receiverMaskSet, dx, dy);
+
+    % Print shape of data and dataPred
+    
 
     res = dataPred-data;
     HTres = H_adjoint_full(res, sensorGreensFunctionSet, receiverMaskSet, dx, dy);
