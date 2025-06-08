@@ -12,12 +12,19 @@ matlab -nodisplay -nosplash -nodesktop -r 'lamScale=[{lambda_val}]; frequencySet
 """
 
 # LAMBDA_VALS = [0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0]
-LAMBDA_VALS = [1 / 128, 1 / 64 , 1 / 32, 0.0625,]
+LAMBDA_VALS = [
+    1.0,
+    0.1,
+    0.01,
+]
 STEP_SIZES = [10.0, 1.0, 0.1]
-FREQS = [4,]
+FREQS = [
+    4,
+    5,
+]
 
 KEY_FMT = "freq_{freq}_lambda_{lambda_val}_step_{step_size}"
-JOB_NAME = "2025-05-16_CISOR_TV_{key}"
+JOB_NAME = "2025-06-08_CISOR_TV_{key}"
 
 
 def setup_args() -> argparse.Namespace:
@@ -50,17 +57,11 @@ def main(args: argparse.Namespace):
 
                 # Get the experiment key
                 key = KEY_FMT.format(
-                    lambda_val=lambda_val,
-                    step_size=step_size,
-                    freq=freq
+                    lambda_val=lambda_val, step_size=step_size, freq=freq
                 )
 
                 # Set the result directory in the command
-                cmd = CMD.format(
-                    lambda_val=lambda_val,
-                    step_size=step_size,
-                    freq=freq
-                )
+                cmd = CMD.format(lambda_val=lambda_val, step_size=step_size, freq=freq)
 
                 # Reset the slurm object for each job
 

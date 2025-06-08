@@ -97,7 +97,7 @@ for indIter = 1:numIter
     gradientNorm(indIter) = norm(s(:)-ohatnext(:));
     s = ohatnext + alpha*((q-1)/qnext)*(ohatnext-ohat);
 
-    reldiff = norm(ohatnext(:)-ohat(:))/norm(ohat(:));
+    reldiff = norm(ohatnext(:)-ohat(:))/norm(ohat(:), "fro");
 
     q = qnext;
 
@@ -112,7 +112,7 @@ for indIter = 1:numIter
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     relCost(indIter) = norm(dataPred_ohat(:)-data(:))/norm(data(:));
     tvCost(indIter) = tv_cost(ohat);
-    signalCost(indIter) = norm(ohat-o)/norm(o);
+    signalCost(indIter) = norm(ohat(:)-o(:))/norm(o(:));
     totalCost(indIter) = relCost(indIter) + tvCost(indIter);
     recSNR(indIter) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
 

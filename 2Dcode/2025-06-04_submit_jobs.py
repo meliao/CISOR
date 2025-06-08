@@ -17,7 +17,7 @@ STEP_SIZES = [10.0, 1.0, 0.1]
 FREQS = [4,]
 
 KEY_FMT = "freq_{freq}_lambda_{lambda_val}_step_{step_size}"
-JOB_NAME = "2025-05-16_CISOR_TV_{key}"
+JOB_NAME = "2025-06-05_CISOR_TV_{key}"
 
 
 def setup_args() -> argparse.Namespace:
