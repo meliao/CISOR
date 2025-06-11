@@ -41,6 +41,8 @@ function [ohat, outs, relCost, tvCost, signalCost, times] = cisorTV(data,uincDom
 
 % Yanting Ma @ MERL June 2017
 
+% log the step size
+fprintf('CISORTV: stepSize = %e\n', stepSize);
 
 [Ny,Nx,numTransmitters,numFrequencies] = size(uincDomSet);
 
@@ -85,7 +87,9 @@ for indIter = 1:numIter
 
     grad = sum(sum(real(conj(u) .* (HTres+GTv)), 3), 4);
 
+
     ohatnext = s - stepSize*grad;
+
 
     optsTV.maxiter = 100;
     optsTV.bounds = [0, Inf];
@@ -93,13 +97,15 @@ for indIter = 1:numIter
     optsTV.Q0 = Q0;
     [ohatnext, P0, Q0] = denoiseTV(ohatnext, lam*stepSize, optsTV);
 
+
+
     qnext = 0.5*(1+sqrt(1+4*q*q));
     gradientNorm(indIter) = norm(s(:)-ohatnext(:));
     s = ohatnext + alpha*((q-1)/qnext)*(ohatnext-ohat);
 
-    reldiff = norm(ohatnext(:)-ohat(:))/norm(ohat(:), "fro");
 
     q = qnext;
+    reldiff = norm(ohatnext(:)-ohat(:))/norm(ohat(:));
 
     ohat = ohatnext;
 
@@ -113,9 +119,8 @@ for indIter = 1:numIter
     relCost(indIter) = norm(dataPred_ohat(:)-data(:))/norm(data(:));
     tvCost(indIter) = tv_cost(ohat);
     signalCost(indIter) = norm(ohat(:)-o(:))/norm(o(:));
-    totalCost(indIter) = relCost(indIter) + tvCost(indIter);
+    totalCost(indIter) = relCost(indIter)* norm(data(:)) * 0.5 + lam * tvCost(indIter);
     recSNR(indIter) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
-
 
 
     outs.relCost = relCost;
