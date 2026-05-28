@@ -2,9 +2,9 @@
 %
 % SPDX-License-Identifier: AGPL-3.0-or-later
 
-function [ohat, outs] = cisorTV(data,uincDomSet,...
+function [ohat, outs, relCost, tvCost, signalCost, times] = cisorTV(data,uincDomSet,...
     domainGreensFunctionSet,sensorGreensFunctionSet,receiverMaskSet,dx,dy,...
-    numIter,plotRec,alpha,o,tol,lam,stepSize,fileName)
+    numIter,plotRec,alpha,o,tol,lam,stepSize,ohat)
 
 %%% Implementation of CISOR
 
@@ -41,6 +41,8 @@ function [ohat, outs] = cisorTV(data,uincDomSet,...
 
 % Yanting Ma @ MERL June 2017
 
+% log the step size
+fprintf('CISORTV: stepSize = %e\n', stepSize);
 
 [Ny,Nx,numTransmitters,numFrequencies] = size(uincDomSet);
 
@@ -49,12 +51,14 @@ stopCounter = 0;
 
 
 relCost = zeros(numIter, 1);
+signalCost = zeros(numIter, 1);
+times = zeros(numIter, 1);
 tvCost = zeros(numIter, 1);
 totalCost = zeros(numIter, 1);
 gradientNorm = zeros(numIter,1);
 recSNR = zeros(numIter,1);
 
-ohat = zeros([Ny Nx]);
+% ohat = zeros([Ny Nx]);
 s = ohat;
 q = 1;
 u = zeros(size(uincDomSet));
@@ -64,9 +68,14 @@ Q0 = zeros(Ny*Nx*2, 1);
 
 for indIter = 1:numIter
 
+    tstart = tic;
+
     u = forwardProp(uincDomSet, s, domainGreensFunctionSet, u, dx, dy);
     dataPred = fullPropagateToSensor(s, u,...
         sensorGreensFunctionSet, receiverMaskSet, dx, dy);
+
+    % Print shape of data and dataPred
+    
 
     res = dataPred-data;
     HTres = H_adjoint_full(res, sensorGreensFunctionSet, receiverMaskSet, dx, dy);
@@ -78,7 +87,9 @@ for indIter = 1:numIter
 
     grad = sum(sum(real(conj(u) .* (HTres+GTv)), 3), 4);
 
+
     ohatnext = s - stepSize*grad;
+
 
     optsTV.maxiter = 100;
     optsTV.bounds = [0, Inf];
@@ -86,15 +97,19 @@ for indIter = 1:numIter
     optsTV.Q0 = Q0;
     [ohatnext, P0, Q0] = denoiseTV(ohatnext, lam*stepSize, optsTV);
 
+
+
     qnext = 0.5*(1+sqrt(1+4*q*q));
     gradientNorm(indIter) = norm(s(:)-ohatnext(:));
     s = ohatnext + alpha*((q-1)/qnext)*(ohatnext-ohat);
 
+
     q = qnext;
+    reldiff = norm(ohatnext(:)-ohat(:))/norm(ohat(:));
 
     ohat = ohatnext;
 
-
+    times(indIter) = toc(tstart);
 
     %%% for computing cost only
     u_ohat = forwardProp(uincDomSet, ohat, domainGreensFunctionSet, u, dx, dy);
@@ -102,10 +117,10 @@ for indIter = 1:numIter
         sensorGreensFunctionSet, receiverMaskSet, dx, dy);
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     relCost(indIter) = norm(dataPred_ohat(:)-data(:))/norm(data(:));
-    tvCost(indIter) = lam*tv_cost(ohat)/(0.5*norm(data(:)));
-    totalCost(indIter) = relCost(indIter) + tvCost(indIter);
+    tvCost(indIter) = tv_cost(ohat);
+    signalCost(indIter) = norm(ohat(:)-o(:))/norm(o(:));
+    totalCost(indIter) = relCost(indIter)* norm(data(:)) * 0.5 + lam * tvCost(indIter);
     recSNR(indIter) = 20*log10(norm(o(:))/norm(ohat(:)-o(:)));
-
 
 
     outs.relCost = relCost;
@@ -115,19 +130,21 @@ for indIter = 1:numIter
     outs.recSNR = recSNR;
 
     if indIter > 1
-        if abs(totalCost(indIter-1)-totalCost(indIter))/totalCost(indIter-1)<tol
+        if reldiff<tol
             stopCounter = stopCounter + 1;
         else
             stopCounter = 0;
         end
 
         if stopCounter>=10
+            fprintf('Stopping criteria met. Stop iteration.\n');
             break;
         end
     end
 
 
-%     fprintf('indIter = %d, totalCost = %e\n',indIter, totalCost(indIter));
+    fprintf('indIter = %d, signalCost = %e, relCost = %e,  time=%e \n',...
+        indIter, signalCost(indIter), relCost(indIter),  times(indIter));
 
     if plotRec.flag
         Lx = plotRec.Lx;
